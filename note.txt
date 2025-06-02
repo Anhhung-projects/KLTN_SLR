@@ -1,0 +1,108 @@
+All A video >= 60 frames
+AA: video_21.avi - 55.0 frames
+AA: video_22.avi - 56.0 frames
+AA: video_23.avi - 55.0 frames
+AA: video_24.avi - 55.0 frames
+AA: video_29.avi - 56.0 frames
+All AW video >= 60 frames
+All B video >= 60 frames
+All C video >= 60 frames
+All D video >= 60 frames
+All DD video >= 60 frames
+All E video >= 60 frames
+All EE video >= 60 frames
+F: video_6.avi - 57.0 frames
+G: video_25.avi - 57.0 frames
+G: video_27.avi - 55.0 frames
+H: video_1.avi - 57.0 frames
+H: video_10.avi - 57.0 frames
+H: video_11.avi - 58.0 frames
+H: video_12.avi - 57.0 frames
+H: video_13.avi - 58.0 frames
+H: video_14.avi - 57.0 frames
+H: video_15.avi - 57.0 frames
+H: video_16.avi - 58.0 frames
+H: video_17.avi - 58.0 frames
+H: video_18.avi - 58.0 frames
+H: video_19.avi - 57.0 frames
+H: video_2.avi - 58.0 frames
+H: video_20.avi - 58.0 frames
+H: video_21.avi - 57.0 frames
+H: video_22.avi - 58.0 frames
+H: video_23.avi - 58.0 frames
+H: video_24.avi - 58.0 frames
+H: video_25.avi - 58.0 frames
+H: video_26.avi - 58.0 frames
+H: video_27.avi - 58.0 frames
+H: video_28.avi - 58.0 frames
+H: video_29.avi - 57.0 frames
+H: video_3.avi - 58.0 frames
+H: video_30.avi - 58.0 frames
+H: video_4.avi - 58.0 frames
+H: video_5.avi - 58.0 frames
+H: video_6.avi - 58.0 frames
+H: video_7.avi - 57.0 frames
+H: video_8.avi - 58.0 frames
+H: video_9.avi - 57.0 frames
+I: video_1.avi - 57.0 frames
+I: video_10.avi - 57.0 frames
+I: video_11.avi - 57.0 frames
+I: video_12.avi - 57.0 frames
+I: video_13.avi - 58.0 frames
+I: video_14.avi - 57.0 frames
+I: video_15.avi - 58.0 frames
+I: video_16.avi - 57.0 frames
+I: video_17.avi - 57.0 frames
+I: video_18.avi - 57.0 frames
+I: video_19.avi - 58.0 frames
+I: video_2.avi - 57.0 frames
+I: video_20.avi - 57.0 frames
+I: video_21.avi - 57.0 frames
+I: video_22.avi - 58.0 frames
+I: video_23.avi - 58.0 frames
+I: video_24.avi - 57.0 frames
+I: video_25.avi - 58.0 frames
+I: video_26.avi - 57.0 frames
+I: video_27.avi - 58.0 frames
+I: video_28.avi - 58.0 frames
+I: video_29.avi - 58.0 frames
+I: video_3.avi - 57.0 frames
+I: video_30.avi - 57.0 frames
+I: video_4.avi - 58.0 frames
+I: video_5.avi - 57.0 frames
+I: video_6.avi - 57.0 frames
+I: video_7.avi - 58.0 frames
+I: video_8.avi - 57.0 frames
+I: video_9.avi - 58.0 frames
+All J video >= 60 frames
+K: video_28.avi - 54.0 frames
+K: video_29.avi - 56.0 frames
+All L video >= 60 frames
+All M video >= 60 frames
+All N video >= 60 frames
+All O video >= 60 frames
+All OO video >= 60 frames
+OW: video_10.avi - 58.0 frames
+OW: video_4.avi - 59.0 frames
+All P video >= 60 frames
+Q: video_10.avi - 51.0 frames
+Q: video_11.avi - 52.0 frames
+Q: video_13.avi - 49.0 frames
+Q: video_14.avi - 51.0 frames
+Q: video_4.avi - 58.0 frames
+Q: video_5.avi - 56.0 frames
+Q: video_6.avi - 54.0 frames
+Q: video_7.avi - 53.0 frames
+Q: video_8.avi - 57.0 frames
+Q: video_9.avi - 55.0 frames
+All R video >= 60 frames
+All S video >= 60 frames
+All T video >= 60 frames
+U: video_10.avi - 59.0 frames
+All UW video >= 60 frames
+V: video_26.avi - 57.0 frames
+All W video >= 60 frames
+All X video >= 60 frames
+Y: video_27.avi - 59.0 frames
+Z: video_19.avi - 54.0 frames
+Z: video_20.avi - 56.0 frames
