@@ -1,4 +1,4 @@
-# XÂY DỤNG MÔ HÌNH NHẬN DẠNG NGÔN NGỮ KÝ HIỆU VIỆT NAM
+# XÂY DỤNG MÔ HÌNH NHẬN DẠNG NGÔN NGỮ KÝ HIỆU VIỆT NAM THỜI GIAN THỰC
 > *HOÀNG ANH HÙNG*  
 > *Giáo viên hướng dẫn: TS. NGUYỄN ĐĂNG BÌNH*  
 > *Trường Đại học Khoa học*
@@ -11,7 +11,7 @@ Mô hình nhận dạng ngôn ngữ ký hiệu Việt Nam thời gian thực s�
 Khởi tạo và kích hoạt môi trường ảo (đảm bảo phiên bản python hiện tại là 3.10)
 ```bash
 python -m venv python310
-source python310/bin/activate
+python310\Scripts\activate
 ```
 
 Cài đặt các thư viện cần thiết cho dự án
