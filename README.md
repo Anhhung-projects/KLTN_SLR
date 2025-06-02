@@ -1,7 +1,7 @@
 # XÂY DỤNG MÔ HÌNH NHẬN DẠNG NGÔN NGỮ KÝ HIỆU VIỆT NAM
 > *HOÀNG ANH HÙNG*  
-> *Giáo viên hướng dẫn: TS. NGUYỄN ĐĂNG BÌNH*
-> *Trường Đại học Khoa học*
+> *Giáo viên hướng dẫn: TS. NGUYỄN ĐĂNG BÌNH*  
+> *Trường Đại học Khoa học*  
 Mô hình nhận dạng ngôn ngữ ký hiệu Việt Nam thời gian thực sử dụng MediaPipe Hand để trích xuất đặc trưng và LSTM để nhận dạng chuỗi cử chỉ
 
 ## Chạy mô hình
