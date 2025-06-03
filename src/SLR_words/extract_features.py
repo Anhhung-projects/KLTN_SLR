@@ -11,16 +11,6 @@ mp_pose = mp.solutions.pose
 hands = mp_hands.Hands(static_image_mode=False, max_num_hands=2, min_detection_confidence=0.7)
 pose = mp_pose.Pose(static_image_mode=False, min_detection_confidence=0.7)
 
-#bỏ tiền xử lý vì mediapipe phát hiện tay tốt hơn với frame gốc
-# def preprocess_frame(frame):
-#     """Tiền xử lý frame để cải thiện nhận diện."""
-#     frame = cv2.convertScaleAbs(frame, alpha=1.2, beta=10)
-#     frame = cv2.GaussianBlur(frame, (5, 5), 0)
-#     blurred = cv2.GaussianBlur(frame, (0, 0), 3)
-#     frame = cv2.addWeighted(frame, 1.5, blurred, -0.5, 0)
-#     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-#     return frame, frame_rgb
-
 def rotate_frame(frame, angle):
     """Xoay frame một góc angle (độ)."""
     height, width = frame.shape[:2]
@@ -30,7 +20,7 @@ def rotate_frame(frame, angle):
     return rotated_frame
 
 def normalize_landmarks(landmarks, frame_shape):
-    """Chuẩn hóa điểm mốc tay theo bounding box và giảm trọng số z."""
+    """Chuẩn hóa điểm mốc tay theo bounding box"""
     if landmarks.sum() == 0:
         return landmarks
     landmarks = landmarks.reshape(-1, 3)
@@ -44,8 +34,7 @@ def normalize_landmarks(landmarks, frame_shape):
     else:
         x_normalized = x_coords / width
         y_normalized = y_coords / height
-    z_normalized = z_coords * 0.5
-    return np.concatenate([x_normalized, y_normalized, z_normalized]).flatten()
+    return np.concatenate([x_normalized, y_normalized, z_coords]).flatten()
 
 def compute_hand_movement_distance(hand_landmarks, prev_center):
     """Tính khoảng cách di chuyển của trung tâm bàn tay giữa các frame."""
@@ -58,22 +47,42 @@ def compute_hand_movement_distance(hand_landmarks, prev_center):
     return normalized_distance
 
 def compute_hand_to_shoulder_distances(hand_landmarks, shoulder_left, shoulder_right, frame_shape):
-    """Tính khoảng cách từ trung tâm bàn tay đến hai vai, chuẩn hóa theo kích thước khung hình."""
+    """Tính khoảng cách từ trung tâm bàn tay đến hai vai, chuẩn hóa về [0, 1]."""
     if hand_landmarks.sum() == 0:
         return 0.0, 0.0
     hand_landmarks = hand_landmarks.reshape(-1, 3)
-    x_mean, y_mean = np.mean(hand_landmarks[:, 0]), np.mean(hand_landmarks[:, 1])
-    
     width, height = frame_shape[1], frame_shape[0]
-    diagonal = sqrt(width**2 + height**2)  # Chuẩn hóa theo đường chéo khung hình
     
-    dist_to_left = 0.0
-    dist_to_right = 0.0
+    x_mean, y_mean = np.mean(hand_landmarks[:, 0]), np.mean(hand_landmarks[:, 1])
+    center_absolute = (int(x_mean * width), int(y_mean * height))
     
-    if shoulder_left is not None:
-        dist_to_left = sqrt((x_mean - shoulder_left[0])**2 + (y_mean - shoulder_left[1])**2) / diagonal
-    if shoulder_right is not None:
-        dist_to_right = sqrt((x_mean - shoulder_right[0])**2 + (y_mean - shoulder_right[1])**2) / diagonal
+    shoulder_left_absolute = shoulder_left if shoulder_left is not None else None
+    shoulder_right_absolute = shoulder_right if shoulder_right is not None else None
+    
+    # Tính khoảng cách thô (pixel)
+    dist_to_left_raw = 0.0
+    dist_to_right_raw = 0.0
+    
+    if shoulder_left_absolute:
+        dist_to_left_raw = sqrt((center_absolute[0] - shoulder_left_absolute[0])**2 + 
+                                (center_absolute[1] - shoulder_left_absolute[1])**2)
+    if shoulder_right_absolute:
+        dist_to_right_raw = sqrt((center_absolute[0] - shoulder_right_absolute[0])**2 + 
+                                 (center_absolute[1] - shoulder_right_absolute[1])**2)
+    
+    # Tính khoảng cách giữa hai vai
+    shoulder_distance = 0.0
+    if shoulder_left_absolute and shoulder_right_absolute:
+        shoulder_distance = sqrt((shoulder_left_absolute[0] - shoulder_right_absolute[0])**2 + 
+                                 (shoulder_left_absolute[1] - shoulder_right_absolute[1])**2)
+    
+    # xử lý ngoại lệ
+    diagonal = sqrt(width**2 + height**2)
+    normalization_factor = shoulder_distance if shoulder_distance > 0 else diagonal
+    
+    # Chuẩn hóa khoảng cách về [0, 1]
+    dist_to_left = dist_to_left_raw / normalization_factor if normalization_factor > 0 else 0.0
+    dist_to_right = dist_to_right_raw / normalization_factor if normalization_factor > 0 else 0.0
     
     return dist_to_left, dist_to_right
 
@@ -94,6 +103,15 @@ def extract_features(video_path, output_dir, metadata, video_id, label, video_ty
     prev_left_center = None
     prev_right_shoulder_dists = (0.0, 0.0)
     prev_left_shoulder_dists = (0.0, 0.0)
+    
+    # biến xử lý ngoại lệ
+    right_temp_count = 0
+    left_temp_count = 0
+    right_temp_start = -1
+    left_temp_start = -1
+    max_temp_frames = 5
+    prev_shoulder_left = None
+    prev_shoulder_right = None
     frame_idx = 0
     
     while cap.isOpened() and len(frame_data) < 30:
@@ -103,7 +121,6 @@ def extract_features(video_path, output_dir, metadata, video_id, label, video_ty
         if frame_idx % 2 == 0:
             if rotation_angle != 0:
                 frame = rotate_frame(frame, rotation_angle)
-            # processed_frame, frame_rgb = preprocess_frame(frame)
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             frame_shape = frame.shape
             
@@ -114,7 +131,7 @@ def extract_features(video_path, output_dir, metadata, video_id, label, video_ty
             if hand_results.multi_hand_landmarks and hand_results.multi_handedness:
                 for hand, handedness in zip(hand_results.multi_hand_landmarks, hand_results.multi_handedness):
                     score = handedness.classification[0].score
-                    hand_label = handedness.classification[0].label  # ✅ đổi tên tránh ghi đè nhãn gốc
+                    hand_label = handedness.classification[0].label
                     if hand_label == 'Right' and (right_hand is None or score > right_score):
                         right_hand = hand
                         right_score = score
@@ -127,40 +144,74 @@ def extract_features(video_path, output_dir, metadata, video_id, label, video_ty
             shoulder_left, shoulder_right = None, None
             if pose_results.pose_landmarks:
                 landmarks = pose_results.pose_landmarks.landmark
-                shoulder_left = (landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER].x,
-                               landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER].y)
-                shoulder_right = (landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER].x,
-                                landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER].y)
+                shoulder_left = (int(landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER].x * frame_shape[1]),
+                               int(landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER].y * frame_shape[0]))
+                shoulder_right = (int(landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER].x * frame_shape[1]),
+                                int(landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER].y * frame_shape[0]))
+                prev_shoulder_left = shoulder_left
+                prev_shoulder_right = shoulder_right
+            else:
+                shoulder_left = prev_shoulder_left
+                shoulder_right = prev_shoulder_right
             
             # Trích xuất đặc trưng tay phải
             right_features = np.zeros(21 * 3) if not right_hand else np.array([
                 coord for lm in right_hand.landmark for coord in [lm.x, lm.y, lm.z]
             ])
-            if right_features.sum() == 0 and prev_right is not None:
+            right_detected = right_features.sum() != 0
+            is_right_temp = False
+            if not right_detected and prev_right is not None:
                 right_features = prev_right
+                is_right_temp = True
+                if right_temp_start == -1:
+                    right_temp_start = len(features)
+                right_temp_count += 1
+            else:
+                right_temp_count = 0
+                right_temp_start = -1
+            
             right_features_normalized = normalize_landmarks(right_features, frame_shape)
             right_movement_distance = compute_hand_movement_distance(right_features, prev_right_center)
             right_shoulder_dists = compute_hand_to_shoulder_distances(right_features, shoulder_left, shoulder_right, frame_shape)
-            if right_features.sum() != 0:
-                right_landmarks = right_features.reshape(-1, 3)
-                prev_right_center = (np.mean(right_landmarks[:, 0]), np.mean(right_landmarks[:, 1]))
-                prev_right = right_features
-                prev_right_shoulder_dists = right_shoulder_dists
             
             # Trích xuất đặc trưng tay trái
             left_features = np.zeros(21 * 3) if not left_hand else np.array([
                 coord for lm in left_hand.landmark for coord in [lm.x, lm.y, lm.z]
             ])
-            if left_features.sum() == 0 and prev_left is not None:
+            left_detected = left_features.sum() != 0
+            is_left_temp = False
+            if not left_detected and prev_left is not None:
                 left_features = prev_left
+                is_left_temp = True
+                if left_temp_start == -1:
+                    left_temp_start = len(features)
+                left_temp_count += 1
+            else:
+                left_temp_count = 0
+                left_temp_start = -1
+            
             left_features_normalized = normalize_landmarks(left_features, frame_shape)
             left_movement_distance = compute_hand_movement_distance(left_features, prev_left_center)
             left_shoulder_dists = compute_hand_to_shoulder_distances(left_features, shoulder_left, shoulder_right, frame_shape)
-            if left_features.sum() != 0:
-                left_landmarks = left_features.reshape(-1, 3)
-                prev_left_center = (np.mean(left_landmarks[:, 0]), np.mean(left_landmarks[:, 1]))
-                prev_left = left_features
-                prev_left_shoulder_dists = left_shoulder_dists
+            
+            # Kiểm tra và bỏ đặc trưng tái sử dụng nếu vượt quá ngưỡng
+            if right_temp_count >= max_temp_frames and right_temp_start != -1:
+                for i in range(right_temp_start, len(features)):
+                    features[i][:65] = np.zeros(65)  # Bỏ đặc trưng tay phải
+                prev_right = None
+                prev_right_center = None
+                prev_right_shoulder_dists = (0.0, 0.0)
+                right_temp_count = 0
+                right_temp_start = -1
+            
+            if left_temp_count >= max_temp_frames and left_temp_start != -1:
+                for i in range(left_temp_start, len(features)):
+                    features[i][65:] = np.zeros(67)  # Bỏ đặc trưng tay trái
+                prev_left = None
+                prev_left_center = None
+                prev_left_shoulder_dists = (0.0, 0.0)
+                left_temp_count = 0
+                left_temp_start = -1
             
             # Kết hợp đặc trưng
             frame_features = np.concatenate([
@@ -172,6 +223,18 @@ def extract_features(video_path, output_dir, metadata, video_id, label, video_ty
                  prev_left_shoulder_dists[1] if shoulder_right is None else left_shoulder_dists[1]]
             ])
             features.append(frame_features)
+            
+            # Cập nhật trạng thái nếu tay được phát hiện
+            if right_detected:
+                right_landmarks = right_features.reshape(-1, 3)
+                prev_right_center = (np.mean(right_landmarks[:, 0]), np.mean(right_landmarks[:, 1]))
+                prev_right = right_features
+                prev_right_shoulder_dists = right_shoulder_dists
+            if left_detected:
+                left_landmarks = left_features.reshape(-1, 3)
+                prev_left_center = (np.mean(left_landmarks[:, 0]), np.mean(left_landmarks[:, 1]))
+                prev_left = left_features
+                prev_left_shoulder_dists = left_shoulder_dists
             
             frame_data.append(frame_idx)
             right_features_list.append(right_features)
