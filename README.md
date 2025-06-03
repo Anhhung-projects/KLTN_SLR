@@ -43,6 +43,7 @@ python ./src/SLR_word/deploy_model.py
 - Các chữ nhận dạng liên tiếp sẽ tiếp tục hiển thị ở phụ đề cho đến khi không còn phát hiện tay
 - (Các) Chữ cái ở phụ đề sẽ được ghép lại thành một từ và hiển thị trên góc màn hình
 ![SLR alphabet](evaluation/test/image_1.png)
+
 *Hình 1: Mẫu ứng dụng nhận dạng ngôn ngữ ký hiệu - bảng chữ cái tiếng Việt*
 
 ### 2. Mô hình nhận dạng ngôn ngữ ký hiệu - từ/cụm từ tiếng Việt
@@ -52,4 +53,5 @@ python ./src/SLR_word/deploy_model.py
 - Tiến độ thu thập được thể hiện trên thanh tiến trình, yêu cầu thể hiện 1 ký hiệu duy nhất cho đến khi thanh tiến trình đầy
 - Khi thanh tiến trình đây, mô hình trả ra ký hiệu và in ở bên trái giao diện ứng dụng.
 ![SLR word](evaluation/test/image_2.png)
+
 *Hình 2: Mẫu ứng dụng nhận dạng ngôn ngữ ký hiệu - từ/cụm từ tiếng Việt*
