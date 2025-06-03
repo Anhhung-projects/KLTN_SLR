@@ -5,6 +5,11 @@
 
 Mô hình nhận dạng ngôn ngữ ký hiệu Việt Nam thời gian thực sử dụng MediaPipe Hand để trích xuất đặc trưng và LSTM để nhận dạng chuỗi cử chỉ
 
+## Mô tả
+Mô hình LSTM tuần tự được thiết kế cho bài toán nhận dạng ngôn ngữ ký hiệu dựa trên các đặc trưng chuỗi thời gian.
+- Đầu vào của mô hình là đặc trưng điểm mốc từ mediapipe thông qua camera
+- Đầu ra là xác suất các ký hiệu
+
 ## Chạy mô hình
 ### 1. Tạo môi trường ảo
 
