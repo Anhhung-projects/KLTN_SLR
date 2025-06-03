@@ -9,9 +9,9 @@ import os
 from math import sqrt
 
 THRESHOLD = 0.8
-CAM_IDX = 1
+CAM_IDX = 0 # thay đổi nếu kết nối với webcam
 
-# Khởi tạo MediaPipe Hands và Pose
+# khởi tạo MediaPipe Hands và Pose
 mp_hands = mp.solutions.hands
 mp_pose = mp.solutions.pose
 hands = mp_hands.Hands(static_image_mode=False, max_num_hands=2, min_detection_confidence=0.7)
@@ -25,20 +25,20 @@ label_encoder = LabelEncoder()
 label_encoder.fit(labels)
 print(f"Loaded {len(labels)} labels: {labels}")
 
-# Load mô hình
+# Load model
 model = tf.keras.models.load_model('./model/SLR_model_words.h5', compile=False)
 
-# Hàm tiền xử lý frame
+# tiền xử lý frame
 def preprocess_frame(frame):
-    frame = cv2.convertScaleAbs(frame, alpha=1.2, beta=10)
-    frame = cv2.GaussianBlur(frame, (5, 5), 0)
-    blurred = cv2.GaussianBlur(frame, (0, 0), 3)
-    frame = cv2.addWeighted(frame, 1.5, blurred, -0.5, 0)
+#     frame = cv2.convertScaleAbs(frame, alpha=1.2, beta=10)
+#     frame = cv2.GaussianBlur(frame, (5, 5), 0)
+#     blurred = cv2.GaussianBlur(frame, (0, 0), 3)
+#     frame = cv2.addWeighted(frame, 1.5, blurred, -0.5, 0)
     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     return frame, frame_rgb
 
-# Hàm chuẩn hóa điểm mốc
 def normalize_landmarks(landmarks, frame_shape):
+    """chuẩn hóa điểm mốc"""
     if landmarks.sum() == 0:
         return landmarks
     landmarks = landmarks.reshape(-1, 3)
@@ -55,8 +55,8 @@ def normalize_landmarks(landmarks, frame_shape):
     z_normalized = z_coords * 0.5
     return np.concatenate([x_normalized, y_normalized, z_normalized]).flatten()
 
-# Hàm tính khoảng cách di chuyển tay
 def compute_hand_movement_distance(hand_landmarks, prev_center):
+    """tính khoảng cách di chuyển tay"""
     if hand_landmarks.sum() == 0 or prev_center is None:
         return 0.0
     hand_landmarks = hand_landmarks.reshape(-1, 3)
@@ -65,8 +65,8 @@ def compute_hand_movement_distance(hand_landmarks, prev_center):
     normalized_distance = min(distance * 10, 1.0)
     return normalized_distance
 
-# Hàm tính khoảng cách tay đến vai
 def compute_hand_to_shoulder_distances(hand_landmarks, shoulder_left, shoulder_right, frame_shape):
+    """tính khoảng cách tay đến vai"""
     if hand_landmarks.sum() == 0:
         return 0.0, 0.0
     hand_landmarks = hand_landmarks.reshape(-1, 3)
@@ -85,12 +85,11 @@ def compute_hand_to_shoulder_distances(hand_landmarks, shoulder_left, shoulder_r
     
     return dist_to_left, dist_to_right
 
-# Hàm trích xuất đặc trưng từ frame
 def extract_frame_features(frame, prev_right, prev_left, prev_right_center, prev_left_center, prev_right_shoulder_dists, prev_left_shoulder_dists):
+    """trích xuất đặc trưng"""
     processed_frame, frame_rgb = preprocess_frame(frame)
     frame_shape = frame.shape
     
-    # Nhận diện tay
     hand_results = hands.process(frame_rgb)
     right_hand, left_hand = None, None
     right_score, left_score = 0, 0
@@ -105,10 +104,9 @@ def extract_frame_features(frame, prev_right, prev_left, prev_right_center, prev
                 left_hand = hand
                 left_score = score
     
-    # Nhận diện vai
     pose_results = pose.process(frame_rgb)
     shoulder_left, shoulder_right = None, None
-    if pose_results.pose_landmarks:
+    if pose_results.pose_landmarks: # lấy điểm mốc vai trái và phải
         landmarks = pose_results.pose_landmarks.landmark
         shoulder_left = (landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER].x,
                          landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER].y)
@@ -156,9 +154,9 @@ def extract_frame_features(frame, prev_right, prev_left, prev_right_center, prev
     hand_detected = right_detected or left_detected
     return (frame_features, hand_detected, prev_right, prev_left, 
             prev_right_center, prev_left_center, right_shoulder_dists, left_shoulder_dists)
-
-# Hàm hiển thị thanh tiến trình
+    
 def display_progress_bar(frame, current_frames, total_frames=30):
+    """hiển thị thanh tiến trình"""
     h, w, _ = frame.shape
     bar_width = 200
     bar_height = 10  
@@ -172,10 +170,10 @@ def display_progress_bar(frame, current_frames, total_frames=30):
     
     return frame
 
-# Hàm hiển thị từ/cụm từ nhận dạng (sidebar bên phải)
 def display_predictions(frame_full, predictions):
+    """hiển thị từ/cụm từ nhận dạng"""
     h, w, _ = frame_full.shape
-    sidebar_width = w // 4  # Sidebar bên phải, 1/4 chiều rộng
+    sidebar_width = w // 4  
     font_scale = 0.6
     font = cv2.FONT_HERSHEY_SIMPLEX
     thickness = 2
@@ -192,8 +190,8 @@ def display_predictions(frame_full, predictions):
     
     return frame_full
 
-# Ứng dụng nhận dạng thời gian thực
 def real_time_sign_recognition():
+    """triển khai mô hình SLR"""
     cap = cv2.VideoCapture(CAM_IDX)
     if not cap.isOpened():
         print("Error: Cannot open webcam")
@@ -236,9 +234,7 @@ def real_time_sign_recognition():
             print("Error: Cannot read frame")
             break
         
-        # Flip frame
         frame = cv2.flip(frame, 1)
-        # Giữ nguyên kích thước frame gốc
         frame = cv2.resize(frame, (video_width, new_h))
         
         # Tạo khung hình đầy đủ với sidebar bên phải
@@ -347,7 +343,7 @@ def real_time_sign_recognition():
                 break
             continue
         
-        # Thu thập dữ liệu
+        # lấy dữ liệu từ webcam
         window.append(frame_features)
         print(f"Collecting: {len(window)}/30")
         

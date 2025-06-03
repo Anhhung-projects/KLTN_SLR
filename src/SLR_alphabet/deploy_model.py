@@ -51,7 +51,7 @@ def normalize_landmarks(landmarks, frame_shape):
     return np.concatenate([x_normalized, y_normalized, z_normalized]).flatten() #shape (63,)
 
 def compute_hand_movement_distance(hand_landmarks, prev_center):
-    #tính toán khoảng di chuyển bàn tay so với khung hình trước
+    """tính toán khoảng di chuyển bàn tay so với khung hình trước"""
     if hand_landmarks.sum() == 0 or prev_center is None:
         return 0.0
     hand_landmarks = hand_landmarks.reshape(-1, 3)
