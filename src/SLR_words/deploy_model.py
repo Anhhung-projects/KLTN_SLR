@@ -7,11 +7,12 @@ from collections import deque
 import pandas as pd
 import os
 from math import sqrt
+import uuid
 
 THRESHOLD = 0.8
-CAM_IDX = 0 # thay đổi nếu kết nối với webcam
+CAM_IDX = 0  # Thay đổi nếu kết nối với webcam
 
-# khởi tạo MediaPipe Hands và Pose
+# Khởi tạo MediaPipe Hands và Pose
 mp_hands = mp.solutions.hands
 mp_pose = mp.solutions.pose
 hands = mp_hands.Hands(static_image_mode=False, max_num_hands=2, min_detection_confidence=0.7)
@@ -28,17 +29,13 @@ print(f"Loaded {len(labels)} labels: {labels}")
 # Load model
 model = tf.keras.models.load_model('./model/SLR_model_words.h5', compile=False)
 
-# tiền xử lý frame
+# Tiền xử lý frame
 def preprocess_frame(frame):
-#     frame = cv2.convertScaleAbs(frame, alpha=1.2, beta=10)
-#     frame = cv2.GaussianBlur(frame, (5, 5), 0)
-#     blurred = cv2.GaussianBlur(frame, (0, 0), 3)
-#     frame = cv2.addWeighted(frame, 1.5, blurred, -0.5, 0)
     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     return frame, frame_rgb
 
 def normalize_landmarks(landmarks, frame_shape):
-    """chuẩn hóa điểm mốc"""
+    """Chuẩn hóa điểm mốc tay theo bounding box"""
     if landmarks.sum() == 0:
         return landmarks
     landmarks = landmarks.reshape(-1, 3)
@@ -52,11 +49,10 @@ def normalize_landmarks(landmarks, frame_shape):
     else:
         x_normalized = x_coords / width
         y_normalized = y_coords / height
-    z_normalized = z_coords * 0.5
-    return np.concatenate([x_normalized, y_normalized, z_normalized]).flatten()
+    return np.concatenate([x_normalized, y_normalized, z_coords]).flatten()
 
 def compute_hand_movement_distance(hand_landmarks, prev_center):
-    """tính khoảng cách di chuyển tay"""
+    """Tính khoảng cách di chuyển của trung tâm bàn tay giữa các frame"""
     if hand_landmarks.sum() == 0 or prev_center is None:
         return 0.0
     hand_landmarks = hand_landmarks.reshape(-1, 3)
@@ -66,27 +62,44 @@ def compute_hand_movement_distance(hand_landmarks, prev_center):
     return normalized_distance
 
 def compute_hand_to_shoulder_distances(hand_landmarks, shoulder_left, shoulder_right, frame_shape):
-    """tính khoảng cách tay đến vai"""
+    """Tính khoảng cách từ trung tâm bàn tay đến hai vai, chuẩn hóa về [0, 1]"""
     if hand_landmarks.sum() == 0:
         return 0.0, 0.0
     hand_landmarks = hand_landmarks.reshape(-1, 3)
-    x_mean, y_mean = np.mean(hand_landmarks[:, 0]), np.mean(hand_landmarks[:, 1])
-    
     width, height = frame_shape[1], frame_shape[0]
+    
+    x_mean, y_mean = np.mean(hand_landmarks[:, 0]), np.mean(hand_landmarks[:, 1])
+    center_absolute = (int(x_mean * width), int(y_mean * height))
+    
+    shoulder_left_absolute = (int(shoulder_left[0] * width), int(shoulder_left[1] * height)) if shoulder_left is not None else None
+    shoulder_right_absolute = (int(shoulder_right[0] * width), int(shoulder_right[1] * height)) if shoulder_right is not None else None
+    
+    dist_to_left_raw = 0.0
+    dist_to_right_raw = 0.0
+    
+    if shoulder_left_absolute:
+        dist_to_left_raw = sqrt((center_absolute[0] - shoulder_left_absolute[0])**2 + 
+                                (center_absolute[1] - shoulder_left_absolute[1])**2)
+    if shoulder_right_absolute:
+        dist_to_right_raw = sqrt((center_absolute[0] - shoulder_right_absolute[0])**2 + 
+                                 (center_absolute[1] - shoulder_right_absolute[1])**2)
+    
+    shoulder_distance = 0.0
+    if shoulder_left_absolute and shoulder_right_absolute:
+        shoulder_distance = sqrt((shoulder_left_absolute[0] - shoulder_right_absolute[0])**2 + 
+                                 (shoulder_left_absolute[1] - shoulder_right_absolute[1])**2)
+    
     diagonal = sqrt(width**2 + height**2)
+    normalization_factor = shoulder_distance if shoulder_distance > 0 else diagonal
     
-    dist_to_left = 0.0
-    dist_to_right = 0.0
-    
-    if shoulder_left is not None:
-        dist_to_left = sqrt((x_mean - shoulder_left[0])**2 + (y_mean - shoulder_left[1])**2) / diagonal
-    if shoulder_right is not None:
-        dist_to_right = sqrt((x_mean - shoulder_right[0])**2 + (y_mean - shoulder_right[1])**2) / diagonal
+    dist_to_left = dist_to_left_raw / normalization_factor if normalization_factor > 0 else 0.0
+    dist_to_right = dist_to_right_raw / normalization_factor if normalization_factor > 0 else 0.0
     
     return dist_to_left, dist_to_right
 
-def extract_frame_features(frame, prev_right, prev_left, prev_right_center, prev_left_center, prev_right_shoulder_dists, prev_left_shoulder_dists):
-    """trích xuất đặc trưng"""
+def extract_frame_features(frame, prev_right, prev_left, prev_right_center, prev_left_center, 
+                         prev_right_shoulder_dists, prev_left_shoulder_dists, prev_shoulder_left, prev_shoulder_right):
+    """Trích xuất đặc trưng từ frame"""
     processed_frame, frame_rgb = preprocess_frame(frame)
     frame_shape = frame.shape
     
@@ -106,12 +119,15 @@ def extract_frame_features(frame, prev_right, prev_left, prev_right_center, prev
     
     pose_results = pose.process(frame_rgb)
     shoulder_left, shoulder_right = None, None
-    if pose_results.pose_landmarks: # lấy điểm mốc vai trái và phải
+    if pose_results.pose_landmarks:
         landmarks = pose_results.pose_landmarks.landmark
         shoulder_left = (landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER].x,
-                         landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER].y)
+                        landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER].y)
         shoulder_right = (landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER].x,
-                          landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER].y)
+                         landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER].y)
+    else:
+        shoulder_left = prev_shoulder_left
+        shoulder_right = prev_shoulder_right
     
     # Trích xuất đặc trưng tay phải
     right_features = np.zeros(21 * 3) if not right_hand else np.array([
@@ -153,10 +169,11 @@ def extract_frame_features(frame, prev_right, prev_left, prev_right_center, prev
     
     hand_detected = right_detected or left_detected
     return (frame_features, hand_detected, prev_right, prev_left, 
-            prev_right_center, prev_left_center, right_shoulder_dists, left_shoulder_dists)
-    
+            prev_right_center, prev_left_center, right_shoulder_dists, left_shoulder_dists,
+            shoulder_left, shoulder_right)
+
 def display_progress_bar(frame, current_frames, total_frames=30):
-    """hiển thị thanh tiến trình"""
+    """Hiển thị thanh tiến trình"""
     h, w, _ = frame.shape
     bar_width = 200
     bar_height = 10  
@@ -171,7 +188,7 @@ def display_progress_bar(frame, current_frames, total_frames=30):
     return frame
 
 def display_predictions(frame_full, predictions):
-    """hiển thị từ/cụm từ nhận dạng"""
+    """Hiển thị từ/cụm từ nhận dạng"""
     h, w, _ = frame_full.shape
     sidebar_width = w // 4  
     font_scale = 0.6
@@ -191,7 +208,7 @@ def display_predictions(frame_full, predictions):
     return frame_full
 
 def real_time_sign_recognition():
-    """triển khai mô hình SLR"""
+    """Triển khai mô hình SLR"""
     cap = cv2.VideoCapture(CAM_IDX)
     if not cap.isOpened():
         print("Error: Cannot open webcam")
@@ -216,6 +233,8 @@ def real_time_sign_recognition():
     prev_left_center = None
     prev_right_shoulder_dists = (0.0, 0.0)
     prev_left_shoulder_dists = (0.0, 0.0)
+    prev_shoulder_left = None
+    prev_shoulder_right = None
     right_temp_count = 0
     left_temp_count = 0
     right_temp_start = -1
@@ -237,9 +256,8 @@ def real_time_sign_recognition():
         frame = cv2.flip(frame, 1)
         frame = cv2.resize(frame, (video_width, new_h))
         
-        # Tạo khung hình đầy đủ với sidebar bên phải
         frame_full = np.zeros((new_h, new_w, 3), dtype=np.uint8)
-        frame_full[:, :video_width] = frame  # Đặt frame gốc vào bên trái
+        frame_full[:, :video_width] = frame
         
         frame_idx += 1
         if frame_idx % 2 != 0:
@@ -253,9 +271,9 @@ def real_time_sign_recognition():
         # Trích xuất đặc trưng
         (frame_features, hand_detected, prev_right, prev_left, 
          prev_right_center, prev_left_center, right_shoulder_dists, 
-         left_shoulder_dists) = extract_frame_features(
+         left_shoulder_dists, shoulder_left, shoulder_right) = extract_frame_features(
             frame, prev_right, prev_left, prev_right_center, prev_left_center,
-            prev_right_shoulder_dists, prev_left_shoulder_dists
+            prev_right_shoulder_dists, prev_left_shoulder_dists, prev_shoulder_left, prev_shoulder_right
         )
         
         is_right_temp = False
@@ -320,7 +338,6 @@ def real_time_sign_recognition():
             if hand_detecting_logged:
                 hand_detecting_logged = False
         
-        # Reset nếu không phát hiện tay trong 10 frame
         if no_hand_count >= 10:
             print("Lost hand")
             print("Hand detecting...")
@@ -331,6 +348,8 @@ def real_time_sign_recognition():
             prev_left_center = None
             prev_right_shoulder_dists = (0.0, 0.0)
             prev_left_shoulder_dists = (0.0, 0.0)
+            prev_shoulder_left = None
+            prev_shoulder_right = None
             no_hand_count = 0
             right_temp_count = 0
             left_temp_count = 0
@@ -343,7 +362,6 @@ def real_time_sign_recognition():
                 break
             continue
         
-        # lấy dữ liệu từ webcam
         window.append(frame_features)
         print(f"Collecting: {len(window)}/30")
         
@@ -368,6 +386,8 @@ def real_time_sign_recognition():
             prev_left_center = None
             prev_right_shoulder_dists = (0.0, 0.0)
             prev_left_shoulder_dists = (0.0, 0.0)
+            prev_shoulder_left = None
+            prev_shoulder_right = None
             no_hand_count = 0
             right_temp_count = 0
             left_temp_count = 0
